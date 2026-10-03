@@ -1,0 +1,14 @@
+{
+  "IsEncrypted": false,
+  "Values": {
+    "AzureWebJobsStorage": "UseDevelopmentStorage=true",
+    "FUNCTIONS_WORKER_RUNTIME": "node",
+    "SQL_CONNECTION_STRING": "",
+    "ENTRA_ISSUER": "",
+    "ENTRA_JWKS_URI": "",
+    "ENTRA_AUDIENCE": "",
+    "MAX_PAGE_SIZE": "50",
+    "DEFAULT_PAGE_SIZE": "20"
+  },
+  "Host": { "CORS": "http://localhost:3000", "LocalHttpPort": 7071 }
+}
