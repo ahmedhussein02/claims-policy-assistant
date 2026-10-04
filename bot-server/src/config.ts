@@ -9,6 +9,7 @@ const schema = z.object({
   ENTRA_ISSUER: z.string().min(1),
   ENTRA_JWKS_URI: z.string().url(),
   ENTRA_AUDIENCE: z.string().min(1),
+  ENTRA_REQUIRED_SCOPE: z.string().default("Claims.Read"),
 
   CLAIMS_API_BASE_URL: z.string().url(),
 

@@ -5,6 +5,7 @@ const schema = z.object({
   ENTRA_ISSUER: z.string().min(1),
   ENTRA_JWKS_URI: z.string().url(),
   ENTRA_AUDIENCE: z.string().min(1),
+  ENTRA_REQUIRED_SCOPE: z.string().default("Claims.Read"),
   MAX_PAGE_SIZE: z.coerce.number().int().positive().default(50),
   DEFAULT_PAGE_SIZE: z.coerce.number().int().positive().default(20),
 });
