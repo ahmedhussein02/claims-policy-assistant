@@ -6,7 +6,7 @@
     "dev": "tsx watch src/server.ts",
     "build": "tsc",
     "start": "node dist/server.js",
-    "ingest": "tsx scripts/ingest.ts"
+    "ingest": "tsx src/scripts/ingest.ts"
   },
   "dependencies": {
     "@azure/search-documents": "^12.1.0",
