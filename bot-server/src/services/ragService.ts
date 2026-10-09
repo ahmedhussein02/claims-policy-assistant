@@ -68,14 +68,20 @@ export async function retrieve(question: string): Promise<{ chunks: RetrievedChu
     : await client.search(question, common);
 
   const all: RetrievedChunk[] = [];
+  let withoutVector = 0;
   for await (const r of results.results) {
     const d = r.document;
+    if (!d.contentVector) withoutVector++;
     all.push({
       id: d.id, documentId: d.documentId, documentTitle: d.documentTitle, sourceFile: d.sourceFile,
       section: d.section, content: d.content,
       // Hybrid (RRF) scores are rank-based, not comparable across queries, so the gate uses true cosine similarity.
       similarity: d.contentVector ? cosine(queryVector, d.contentVector) : 0,
     });
+  }
+  // Fail loudly instead of silently falling back: similarities are meaningless if vectors were not returned.
+  if (all.length > 0 && withoutVector === all.length) {
+    throw new Error("Search results contain no vectors. Make 'contentVector' retrievable and re-run: npm run ingest -- --recreate");
   }
   return { all, chunks: all.filter((c) => c.similarity >= config.RAG_MIN_SCORE) };
 }

@@ -13,6 +13,7 @@ import { AzureKeyCredential, SearchClient, SearchIndexClient, type SearchIndex }
 import { chunkMarkdown, estimateTokens, type Chunk } from "../rag/chunker";
 
 const DRY_RUN = process.argv.includes("--dry-run");
+const RECREATE = process.argv.includes("--recreate"); // drop and rebuild the index (needed when field attributes change)
 const POLICIES_DIR = path.resolve(__dirname, "../../../docs/policies");
 
 const env = z
@@ -70,6 +71,7 @@ function buildIndex(): SearchIndex {
         name: "contentVector",
         type: "Collection(Edm.Single)",
         searchable: true,
+        hidden: false, // retrievable: the RAG service reads vectors back to compute cosine similarity for its relevance gate
         vectorSearchDimensions: env.EMBEDDING_DIMENSIONS,
         vectorSearchProfileName: "vector-profile",
       },
@@ -129,7 +131,12 @@ async function main() {
     if (!env[k]) throw new Error(`${k} is required for a full ingestion run.`);
   }
   const credential = new AzureKeyCredential(env.SEARCH_API_KEY);
-  await new SearchIndexClient(env.SEARCH_ENDPOINT, credential).createOrUpdateIndex(buildIndex());
+  const indexClient = new SearchIndexClient(env.SEARCH_ENDPOINT, credential);
+  if (RECREATE) {
+    await indexClient.deleteIndex(env.SEARCH_INDEX_NAME).catch((e) => { if (e?.statusCode !== 404) throw e; });
+    console.log(`\nIndex "${env.SEARCH_INDEX_NAME}" deleted (--recreate).`);
+  }
+  await indexClient.createOrUpdateIndex(buildIndex());
   console.log(`\nIndex "${env.SEARCH_INDEX_NAME}" created/updated.`);
 
   const vectors = await embedAll(new OpenAI({ apiKey: env.OPENAI_API_KEY }), chunks);
