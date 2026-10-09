@@ -6,7 +6,8 @@
     "dev": "tsx watch src/server.ts",
     "build": "tsc",
     "start": "node dist/server.js",
-    "ingest": "tsx src/scripts/ingest.ts"
+    "ingest": "tsx src/scripts/ingest.ts",
+    "rag:eval": "tsx src/scripts/ragEval.ts"
   },
   "dependencies": {
     "@azure/search-documents": "^12.1.0",

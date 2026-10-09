@@ -24,7 +24,9 @@ const schema = z.object({
   SEARCH_INDEX_NAME: z.string().default("policy-chunks"),
 
   RAG_TOP_K: z.coerce.number().int().positive().default(5),
-  RAG_MIN_SCORE: z.coerce.number().default(0.5),
+  RAG_MIN_SCORE: z.coerce.number().min(0).max(1).default(0.35), // cosine similarity gate (see docs/rag-design.md)
+  SEARCH_USE_SEMANTIC: z.enum(["true", "false"]).default("false").transform((v) => v === "true"),
+  SEARCH_SEMANTIC_CONFIG: z.string().default("policy-semantic"),
   CHUNK_SIZE_TOKENS: z.coerce.number().default(400),
   CHUNK_OVERLAP_TOKENS: z.coerce.number().default(60),
   FALLBACK_MESSAGE: z
