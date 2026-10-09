@@ -6,6 +6,7 @@
 import { retrieve, answerPolicyQuestion } from "../services/ragService";
 import { config } from "../config";
 import { formatSources } from "../rag/ragUtils";
+import { describeError } from "../rag/describeError";
 
 const ON_TOPIC = [
   "What documents do I need to submit a claim?",
@@ -32,4 +33,4 @@ async function main() {
     console.log();
   }
 }
-main().catch((e) => { console.error("Eval failed:", e?.message ?? e); process.exit(1); });
+main().catch((e) => { console.error("Eval failed:", describeError(e)); process.exit(1); });

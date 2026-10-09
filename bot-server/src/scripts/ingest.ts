@@ -11,6 +11,7 @@ import OpenAI from "openai";
 import { BlobServiceClient } from "@azure/storage-blob";
 import { AzureKeyCredential, SearchClient, SearchIndexClient, type SearchIndex } from "@azure/search-documents";
 import { chunkMarkdown, estimateTokens, type Chunk } from "../rag/chunker";
+import { describeError } from "../rag/describeError";
 
 const DRY_RUN = process.argv.includes("--dry-run");
 const RECREATE = process.argv.includes("--recreate"); // drop and rebuild the index (needed when field attributes change)
@@ -158,6 +159,6 @@ async function main() {
 }
 
 main().catch((err) => {
-  console.error("Ingestion failed:", err?.message ?? err);
+  console.error("Ingestion failed:", describeError(err));
   process.exit(1);
 });

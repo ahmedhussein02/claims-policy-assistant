@@ -7,6 +7,8 @@
     "build": "tsc",
     "start": "node dist/server.js",
     "ingest": "tsx src/scripts/ingest.ts",
+    "ingest:recreate": "tsx src/scripts/ingest.ts --recreate",
+    "ingest:dry": "tsx src/scripts/ingest.ts --dry-run",
     "rag:eval": "tsx src/scripts/ragEval.ts"
   },
   "dependencies": {
