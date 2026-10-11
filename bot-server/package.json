@@ -10,7 +10,8 @@
     "ingest:recreate": "tsx src/scripts/ingest.ts --recreate",
     "ingest:dry": "tsx src/scripts/ingest.ts --dry-run",
     "rag:eval": "tsx src/scripts/ragEval.ts",
-    "router:test": "tsx src/scripts/routerTest.ts"
+    "router:test": "tsx src/scripts/routerTest.ts",
+    "chat:test": "tsx src/scripts/chatTest.ts"
   },
   "dependencies": {
     "@azure/search-documents": "^12.1.0",
