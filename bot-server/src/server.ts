@@ -6,6 +6,7 @@ import { config } from "./config";
 import { authenticate, AuthError, type AuthInfo } from "./middleware/auth";
 import { handleChat, type ChatOutcome } from "./bot";
 import { ClaimsApiError } from "./services/claimsService";
+import { buildRecord, logInteraction, type InteractionRecord } from "./services/observabilityService";
 
 const bodySchema = z.object({
   message: z.string().trim().min(1, "Message is required").max(1000, "Message is too long (max 1000 characters)"),
@@ -15,6 +16,8 @@ const bodySchema = z.object({
 export interface AppDeps {
   authenticate: (authorization: string | undefined) => Promise<AuthInfo>;
   handle: (input: { message: string; token: string; conversationId: string; oid: string }) => Promise<ChatOutcome>;
+  /** Fire-and-forget observability hook; must never affect the response. */
+  log?: (record: InteractionRecord) => void;
 }
 
 export function createApp(deps: AppDeps) {
@@ -33,8 +36,12 @@ export function createApp(deps: AppDeps) {
         return res.status(400).json({ error: "invalid_request", message: parsed.error.issues[0]?.message ?? "Invalid request" });
       }
       const conversationId = parsed.data.conversationId ?? crypto.randomUUID();
-      const { response } = await deps.handle({ message: parsed.data.message, token: auth.token, oid: auth.oid, conversationId });
-      res.set("Cache-Control", "no-store").json(response);
+      const started = Date.now();
+      const outcome = await deps.handle({ message: parsed.data.message, token: auth.token, oid: auth.oid, conversationId });
+      res.set("Cache-Control", "no-store").json(outcome.response);
+      try { // after the reply is sent: logging can't slow or break the chat
+        deps.log?.(buildRecord({ conversationId, oid: auth.oid, message: parsed.data.message, outcome, totalMs: Date.now() - started }));
+      } catch (e) { console.warn("observability hook failed:", (e as Error)?.message); }
     } catch (e) {
       next(e);
     }
@@ -61,7 +68,7 @@ export function createApp(deps: AppDeps) {
 }
 
 if (require.main === module) {
-  createApp({ authenticate, handle: (i) => handleChat(i) }).listen(config.PORT, () =>
+  createApp({ authenticate, handle: (i) => handleChat(i), log: (r) => void logInteraction(r) }).listen(config.PORT, () =>
     console.log(`bot-server listening on :${config.PORT}`)
   );
 }
