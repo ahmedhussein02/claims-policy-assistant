@@ -4,12 +4,14 @@ import cors from "cors";
 import { z } from "zod";
 import { config } from "./config";
 import { authenticate, AuthError, type AuthInfo } from "./middleware/auth";
+import { RateLimitError, SlidingWindowLimiter, TimeoutError, withTimeout } from "./middleware/rateLimiter";
+import { sanitizeMessage } from "./middleware/sanitize";
 import { handleChat, type ChatOutcome } from "./bot";
 import { ClaimsApiError } from "./services/claimsService";
 import { buildRecord, logInteraction, type InteractionRecord } from "./services/observabilityService";
 
 const bodySchema = z.object({
-  message: z.string().trim().min(1, "Message is required").max(1000, "Message is too long (max 1000 characters)"),
+  message: z.string().min(1, "Message is required").max(1000, "Message is too long (max 1000 characters)"),
   conversationId: z.string().uuid().optional(),
 });
 
@@ -20,24 +22,63 @@ export interface AppDeps {
   log?: (record: InteractionRecord) => void;
 }
 
-export function createApp(deps: AppDeps) {
+export interface Limits { ip: SlidingWindowLimiter; perMinute: SlidingWindowLimiter; perDay: SlidingWindowLimiter; timeoutMs: number }
+const defaultLimits = (): Limits => ({
+  ip: new SlidingWindowLimiter(config.IP_RATE_LIMIT_PER_MIN, 60_000),
+  perMinute: new SlidingWindowLimiter(config.CHAT_RATE_LIMIT_PER_MIN, 60_000),
+  perDay: new SlidingWindowLimiter(config.CHAT_DAILY_LIMIT, 86_400_000),
+  timeoutMs: config.CHAT_TIMEOUT_MS,
+});
+
+function securityHeaders(req: Request, res: Response, next: NextFunction) {
+  res.set({
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "DENY",
+    "Referrer-Policy": "no-referrer",
+    "Content-Security-Policy": "default-src 'none'; frame-ancestors 'none'", // JSON API: nothing to load or embed
+  });
+  if (req.secure) res.set("Strict-Transport-Security", "max-age=15552000; includeSubDomains");
+  next();
+}
+
+export function createApp(deps: AppDeps, limits: Limits = defaultLimits()) {
   const app = express();
   app.disable("x-powered-by");
+  if (config.TRUST_PROXY > 0) app.set("trust proxy", config.TRUST_PROXY);
+  app.use(securityHeaders);
   app.use(cors({ origin: config.ALLOWED_ORIGIN }));
   app.use(express.json({ limit: "8kb" }));
+  setInterval(() => { limits.ip.sweep(); limits.perMinute.sweep(); limits.perDay.sweep(); }, 300_000).unref();
 
   app.get("/health", (_req, res) => res.json({ status: "ok" }));
 
   app.post("/chat", async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const auth = await deps.authenticate(req.header("authorization")); // 401/403 before anything else
-      const parsed = bodySchema.safeParse(req.body);
+      // 1. Cheap per-IP guard BEFORE any token validation work.
+      const ipWait = limits.ip.consume(req.ip ?? "unknown");
+      if (ipWait) throw new RateLimitError(ipWait);
+
+      // 2. Authenticate, then per-user limits (minute burst + daily cost cap).
+      const auth = await deps.authenticate(req.header("authorization"));
+      const wait = limits.perMinute.consume(auth.oid) || limits.perDay.consume(auth.oid);
+      if (wait) throw new RateLimitError(wait);
+
+      // 3. Normalise (strip zero-width/control chars), then validate.
+      const raw = (req.body ?? {}) as { message?: unknown; conversationId?: unknown };
+      const parsed = bodySchema.safeParse({
+        message: typeof raw.message === "string" ? sanitizeMessage(raw.message) : raw.message,
+        conversationId: raw.conversationId,
+      });
       if (!parsed.success) {
         return res.status(400).json({ error: "invalid_request", message: parsed.error.issues[0]?.message ?? "Invalid request" });
       }
+
       const conversationId = parsed.data.conversationId ?? crypto.randomUUID();
       const started = Date.now();
-      const outcome = await deps.handle({ message: parsed.data.message, token: auth.token, oid: auth.oid, conversationId });
+      const outcome = await withTimeout(
+        deps.handle({ message: parsed.data.message, token: auth.token, oid: auth.oid, conversationId }),
+        limits.timeoutMs
+      );
       res.set("Cache-Control", "no-store").json(outcome.response);
       try { // after the reply is sent: logging can't slow or break the chat
         deps.log?.(buildRecord({ conversationId, oid: auth.oid, message: parsed.data.message, outcome, totalMs: Date.now() - started }));
@@ -49,18 +90,25 @@ export function createApp(deps: AppDeps) {
 
   // Uniform, non-leaky error handling.
   app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
+    if (err instanceof RateLimitError) {
+      return res.status(429).set("Retry-After", String(err.retryAfterSeconds)).json({
+        error: "rate_limited",
+        message: `You're sending messages too quickly. Please wait ${err.retryAfterSeconds} seconds and try again.`,
+        retryAfterSeconds: err.retryAfterSeconds,
+      });
+    }
+    if (err instanceof TimeoutError) {
+      return res.status(504).json({ error: "timeout", message: "That took too long. Please try again." });
+    }
     if (err instanceof AuthError) {
       return res.status(err.status).json({ error: err.status === 401 ? "unauthorized" : "forbidden", message: err.message });
     }
     if (err instanceof ClaimsApiError && err.status === 401) {
       return res.status(401).json({ error: "unauthorized", message: "Your session expired. Please sign in again." });
     }
-    if ((err as { type?: string })?.type === "entity.parse.failed") {
-      return res.status(400).json({ error: "invalid_request", message: "Malformed JSON body" });
-    }
-    if ((err as { type?: string })?.type === "entity.too.large") {
-      return res.status(413).json({ error: "payload_too_large", message: "Request is too large" });
-    }
+    const type = (err as { type?: string })?.type;
+    if (type === "entity.parse.failed") return res.status(400).json({ error: "invalid_request", message: "Malformed JSON body" });
+    if (type === "entity.too.large") return res.status(413).json({ error: "payload_too_large", message: "Request is too large" });
     console.error("Unhandled error:", (err as Error)?.name, (err as Error)?.message);
     res.status(500).json({ error: "internal_error", message: "An unexpected error occurred." });
   });
@@ -68,6 +116,7 @@ export function createApp(deps: AppDeps) {
 }
 
 if (require.main === module) {
+  process.on("unhandledRejection", (r) => console.error("Unhandled rejection:", (r as Error)?.message ?? r));
   createApp({ authenticate, handle: (i) => handleChat(i), log: (r) => void logInteraction(r) }).listen(config.PORT, () =>
     console.log(`bot-server listening on :${config.PORT}`)
   );

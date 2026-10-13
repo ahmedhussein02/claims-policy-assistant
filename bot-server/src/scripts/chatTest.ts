@@ -1,3 +1,4 @@
+export {}; // make this file a module so test helpers do not clash across scripts
 /** Hermetic tests for the chat orchestrator and HTTP layer (stubbed deps, no network): npm run chat:test */
 for (const [k, v] of Object.entries({
   ENTRA_ISSUER: "x", ENTRA_JWKS_URI: "https://x.com/k", ENTRA_AUDIENCE: "x", CLAIMS_API_BASE_URL: "http://localhost:7071/api",

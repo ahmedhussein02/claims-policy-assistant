@@ -37,6 +37,13 @@ const schema = z.object({
   BLOB_CONTAINER: z.string().default("policies"),
 
   SQL_CONNECTION_STRING: z.string().min(1),
+
+  // Abuse / cost protection for POST /chat
+  CHAT_RATE_LIMIT_PER_MIN: z.coerce.number().int().positive().default(15), // per signed-in user
+  CHAT_DAILY_LIMIT: z.coerce.number().int().positive().default(200), // per signed-in user (caps OpenAI spend)
+  IP_RATE_LIMIT_PER_MIN: z.coerce.number().int().positive().default(120), // per IP, applied before auth
+  CHAT_TIMEOUT_MS: z.coerce.number().int().positive().default(45_000),
+  TRUST_PROXY: z.coerce.number().int().min(0).default(0), // number of reverse-proxy hops (1 on Azure App Service)
 });
 
 export type Config = z.infer<typeof schema>;

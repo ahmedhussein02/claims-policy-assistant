@@ -11,7 +11,9 @@
     "ingest:dry": "tsx src/scripts/ingest.ts --dry-run",
     "rag:eval": "tsx src/scripts/ragEval.ts",
     "router:test": "tsx src/scripts/routerTest.ts",
-    "chat:test": "tsx src/scripts/chatTest.ts"
+    "chat:test": "tsx src/scripts/chatTest.ts",
+    "hardening:test": "tsx src/scripts/hardeningTest.ts",
+    "test": "npm run router:test && npm run chat:test && npm run hardening:test"
   },
   "dependencies": {
     "@azure/search-documents": "^12.1.0",
