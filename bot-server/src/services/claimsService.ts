@@ -11,7 +11,7 @@ export interface ClaimsPage { items: ClaimSummary[]; totalItems: number; page: n
 /** Calls the secured Claims API with the USER's token: ownership is enforced there, never in the bot or the LLM. */
 async function call<T>(token: string, path: string): Promise<T> {
   const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), 10_000);
+  const timer = setTimeout(() => ctrl.abort(), 30_000) // a paused serverless database can take a while to resume;
   try {
     const res = await fetch(`${config.CLAIMS_API_BASE_URL}${path}`, {
       headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },

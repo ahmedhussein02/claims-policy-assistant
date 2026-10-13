@@ -34,9 +34,11 @@ const UNSUPPORTED_MESSAGES: Record<UnsupportedReason, string> = {
   injection: "I can't help with that. I can answer policy questions or show your own claims.",
   other_user_data: "I can only show claims that belong to your account.",
   write_action: "I can't change or submit anything from chat. Please use the portal or contact support. I'm happy to explain how a process works.",
+  off_topic: "I can help with our claims policies and with your own claims, but not with that topic. What would you like to know?",
   needs_clarification: "Could you clarify? Are you asking about our policies in general, or about one of your own claims (for example, \"What's the status of CLM-001?\")?",
 };
 const TROUBLE = "I'm having trouble answering right now. Please try again in a moment.";
+const CLAIMS_TROUBLE = "I couldn't reach the claims service right now, so I can't show your claim information. Please try again in a moment.";
 
 const formatDetail = (c: ClaimDetail) =>
   `Claim ${c.claimId} (${c.claimType}) is **${c.status}**, submitted on ${c.submittedDate}.\n` +
@@ -101,7 +103,7 @@ export async function handleChat(
     const errorType = e instanceof ClaimsApiError ? `claims_api_${e.code}` : (e as Error)?.name ?? "Error";
     console.error(`chat error [${errorType}]`, (e as Error)?.message);
     return {
-      response: { ...base, answer: TROUBLE, sources: [], fallback: true },
+      response: { ...base, answer: e instanceof ClaimsApiError ? CLAIMS_TROUBLE : TROUBLE, sources: [], fallback: true },
       trace: { ...traceBase, status: "error", errorType },
     };
   }

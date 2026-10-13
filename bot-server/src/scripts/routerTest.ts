@@ -62,7 +62,7 @@ const check = (name: string, ok: boolean, got?: unknown) => {
   d = await routeIntent("What's happening with my car accident case?", stub({ intent: "CLAIM_QUERY", confidence: 0.4 }));
   check("LLM low confidence -> clarification, not a guess", d.intent === "UNSUPPORTED" && d.unsupportedReason === "needs_clarification", d);
   d = await routeIntent("What is the capital of France?", stub({ intent: "UNSUPPORTED", confidence: 0.95 }));
-  check("LLM off-topic -> UNSUPPORTED", d.intent === "UNSUPPORTED", d);
+  check("LLM confident off-topic -> off_topic reply", d.intent === "UNSUPPORTED" && d.unsupportedReason === "off_topic", d);
   d = await routeIntent("What's happening with my car accident case?", stub(new Error("timeout")));
   check("Classifier failure -> safe POLICY default", d.intent === "POLICY_QUERY" && d.method === "default", d);
   d = await routeIntent("Show all claims", stub({ intent: "CLAIM_QUERY", confidence: 0.99 }));

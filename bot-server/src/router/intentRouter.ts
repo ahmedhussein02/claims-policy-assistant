@@ -6,7 +6,7 @@
  */
 export type Intent = "POLICY_QUERY" | "CLAIM_QUERY" | "UNSUPPORTED";
 export type UnsupportedReason =
-  | "greeting" | "injection" | "other_user_data" | "write_action" | "needs_clarification";
+  | "greeting" | "injection" | "other_user_data" | "write_action" | "needs_clarification" | "off_topic";
 export const CLAIM_STATUSES = ["Submitted", "In Review", "Action Required", "Approved", "Rejected"] as const;
 export type ClaimStatus = (typeof CLAIM_STATUSES)[number];
 
@@ -94,7 +94,7 @@ export async function routeIntent(rawMessage: string, classify?: Classifier): Pr
       return {
         intent, method: "llm", reason: "llm_classification", confidence,
         ...(intent === "CLAIM_QUERY" ? { claimStatus: extractStatus(message) } : {}),
-        ...(intent === "UNSUPPORTED" ? { unsupportedReason: "needs_clarification" as const } : {}),
+        ...(intent === "UNSUPPORTED" ? { unsupportedReason: "off_topic" as const } : {}), // confident verdict (low confidence returned above)
       };
     } catch {
       // Classifier down: fall back to the lowest-risk path (public policy docs, protected data untouched).

@@ -12,7 +12,7 @@ function isTransient(err: any): boolean {
 
 let poolPromise: Promise<sql.ConnectionPool> | undefined;
 
-async function connectWithRetry(maxAttempts = 4): Promise<sql.ConnectionPool> {
+async function connectWithRetry(maxAttempts = 6): Promise<sql.ConnectionPool> {
   for (let attempt = 1; ; attempt++) {
     const pool = new sql.ConnectionPool(getConfig().SQL_CONNECTION_STRING);
     // If the pool later breaks, drop it so the next request reconnects.
@@ -24,7 +24,7 @@ async function connectWithRetry(maxAttempts = 4): Promise<sql.ConnectionPool> {
     } catch (err) {
       await pool.close().catch(() => undefined);
       if (attempt >= maxAttempts || !isTransient(err)) throw err;
-      await new Promise((r) => setTimeout(r, 2000 * attempt)); // gives a paused DB time to resume
+      await new Promise((r) => setTimeout(r, 3000 * attempt)); // a paused serverless DB can take up to ~1 min to resume
     }
   }
 }
