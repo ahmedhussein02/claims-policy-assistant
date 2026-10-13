@@ -6,7 +6,8 @@
   "scripts": {
     "build": "tsc",
     "watch": "tsc -w",
-    "start": "npm run build && func start"
+    "start": "npm run build && func start",
+    "test": "tsc && node dist/src/tests/security.test.js"
   },
   "dependencies": {
     "@azure/functions": "^4.5.0",
