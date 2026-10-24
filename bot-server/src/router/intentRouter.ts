@@ -6,7 +6,8 @@
  */
 export type Intent = "POLICY_QUERY" | "CLAIM_QUERY" | "UNSUPPORTED";
 export type UnsupportedReason =
-  | "greeting" | "injection" | "other_user_data" | "write_action" | "needs_clarification" | "off_topic";
+  | "greeting" | "injection" | "other_user_data" | "write_action" | "needs_clarification" | "off_topic"
+  | "range_request" | "too_many_claims";
 export const CLAIM_STATUSES = ["Submitted", "In Review", "Action Required", "Approved", "Rejected"] as const;
 export type ClaimStatus = (typeof CLAIM_STATUSES)[number];
 
@@ -14,14 +15,19 @@ export interface RouteDecision {
   intent: Intent;
   method: "rules" | "llm" | "default";
   reason: string; // short machine-readable explanation, safe to log
-  claimId?: string; // CLM-001 form; extracted by regex, never by the LLM
+  claimId?: string; // set when exactly one claim ID is present (CLM-001 form; extracted by regex, never by the LLM)
+  claimIds?: string[]; // 1..MAX_CLAIM_IDS distinct IDs; each is looked up (and ownership-checked) separately
   claimStatus?: ClaimStatus; // optional filter for "show my approved claims"
   unsupportedReason?: UnsupportedReason;
   confidence?: number;
 }
 
-export type Classifier = (message: string) => Promise<{ intent: Intent; confidence: number }>;
-export const LLM_MIN_CONFIDENCE = 0.7;
+/** The classifier separates "clearly unrelated" from "insurance-related but unclear" so each gets the right reply. */
+export type ClassifierLabel = "POLICY_QUERY" | "CLAIM_QUERY" | "OFF_TOPIC" | "UNCLEAR";
+export type Classifier = (message: string) => Promise<{ label: ClassifierLabel; confidence: number }>;
+export const LLM_MIN_CONFIDENCE = 0.7; // needed before an LLM verdict may unlock policy/claim handling
+export const LLM_OFF_TOPIC_MIN_CONFIDENCE = 0.5; // refusing an off-topic message touches no data, so a lower bar is safe
+export const MAX_CLAIM_IDS = 3;
 
 const GREETING = /^\s*(hi|hello|hey|hiya|yo|thanks|thank you|thx|ok|okay|good (morning|afternoon|evening)|bye|goodbye)\b[\s!.,?]*$/i;
 const INJECTION =
@@ -35,6 +41,9 @@ const OTHER_USER = [
 ];
 const WRITE_ACTION =
   /^\s*(please\s+)?(can you\s+|could you\s+|i\s+(want|need|would like|'d like)\s+to\s+)?(file|submit|cancel|withdraw|update|change|edit|delete|upload|pay|reopen|close|escalate|approve|reject)\b/i;
+// "from CLM-001 to CLM-005", "between CLM-001 and CLM-005", "CLM-001-005", "CLM-001 to 005"
+const RANGE =
+  /\b(from|between)\b[^.?!]*\bclm[-\s_]?\d+[^.?!]*\b(to|and|through|thru|until)\b[^.?!]*\bclm[-\s_]?\d+|\bclm[-\s_]?\d+\s*(-|\u2013|\u2014|to|through|thru)\s*(clm[-\s_]?)?\d+\b/i;
 const PERSONAL = /\b(my|mine|i have(?! to)|i've|i filed|i submitted)\b/i; // "do I have to appeal" is not possession
 const CLAIM_WORD = /\bclaims?\b/i;
 const DATA_CUES =
@@ -75,9 +84,12 @@ export async function routeIntent(rawMessage: string, classify?: Classifier): Pr
   if (OTHER_USER.some((re) => re.test(message))) return unsupported("other_user_data", "other_user_or_bulk_data_request");
   if (WRITE_ACTION.test(message)) return unsupported("write_action", "write_action_requested");
 
+  if (RANGE.test(message)) return unsupported("range_request", "claim_range_request");
   const ids = extractClaimIds(message);
-  if (ids.length > 1) return unsupported("needs_clarification", "multiple_claim_ids");
-  if (ids.length === 1) return { intent: "CLAIM_QUERY", method: "rules", reason: "claim_id_present", claimId: ids[0] };
+  if (ids.length > MAX_CLAIM_IDS) return unsupported("too_many_claims", "too_many_claim_ids");
+  if (ids.length >= 1) {
+    return { intent: "CLAIM_QUERY", method: "rules", reason: "claim_id_present", claimIds: ids, ...(ids.length === 1 ? { claimId: ids[0] } : {}) };
+  }
 
   if (PERSONAL.test(message) && CLAIM_WORD.test(message) && DATA_CUES.test(message)) {
     return { intent: "CLAIM_QUERY", method: "rules", reason: "personal_claim_data_request", claimStatus: extractStatus(message) };
@@ -87,14 +99,18 @@ export async function routeIntent(rawMessage: string, classify?: Classifier): Pr
   // Rules can't settle it (e.g. other phrasing/languages): ask the classifier, trust only confident answers.
   if (classify) {
     try {
-      const { intent, confidence } = await classify(message);
-      if (confidence < LLM_MIN_CONFIDENCE) {
-        return { ...unsupported("needs_clarification", "low_confidence", "llm"), confidence };
+      const { label, confidence } = await classify(message);
+      if (label === "OFF_TOPIC") {
+        return confidence >= LLM_OFF_TOPIC_MIN_CONFIDENCE
+          ? { ...unsupported("off_topic", "llm_off_topic", "llm"), confidence }
+          : { ...unsupported("needs_clarification", "low_confidence", "llm"), confidence };
+      }
+      if (label === "UNCLEAR" || confidence < LLM_MIN_CONFIDENCE) {
+        return { ...unsupported("needs_clarification", label === "UNCLEAR" ? "llm_unclear" : "low_confidence", "llm"), confidence };
       }
       return {
-        intent, method: "llm", reason: "llm_classification", confidence,
-        ...(intent === "CLAIM_QUERY" ? { claimStatus: extractStatus(message) } : {}),
-        ...(intent === "UNSUPPORTED" ? { unsupportedReason: "off_topic" as const } : {}), // confident verdict (low confidence returned above)
+        intent: label, method: "llm", reason: "llm_classification", confidence,
+        ...(label === "CLAIM_QUERY" ? { claimStatus: extractStatus(message) } : {}),
       };
     } catch {
       // Classifier down: fall back to the lowest-risk path (public policy docs, protected data untouched).

@@ -35,6 +35,8 @@ const UNSUPPORTED_MESSAGES: Record<UnsupportedReason, string> = {
   other_user_data: "I can only show claims that belong to your account.",
   write_action: "I can't change or submit anything from chat. Please use the portal or contact support. I'm happy to explain how a process works.",
   off_topic: "I can help with our claims policies and with your own claims, but not with that topic. What would you like to know?",
+  range_request: "I can only show claims that belong to your account, and I can't look up ranges. Ask about specific claim IDs (up to 3 at a time), or say \"show my claims\" to see your own.",
+  too_many_claims: "I can look up up to 3 claims at a time. Which ones would you like to see, or say \"show my claims\" for your own list?",
   needs_clarification: "Could you clarify? Are you asking about our policies in general, or about one of your own claims (for example, \"What's the status of CLM-001?\")?",
 };
 const TROUBLE = "I'm having trouble answering right now. Please try again in a moment.";
@@ -54,6 +56,17 @@ function formatList(p: ClaimsPage, status?: string): string {
 
 async function answerClaim(token: string, d: RouteDecision, deps: ChatDeps): Promise<string> {
   try {
+    if (d.claimIds && d.claimIds.length > 1) {
+      // Each ID is fetched on its own, so ownership is checked per claim by the Claims API.
+      const parts = await Promise.all(d.claimIds.map(async (id) => {
+        try { return formatDetail(await deps.claims.getClaim(token, id)); }
+        catch (e) {
+          if (e instanceof ClaimsApiError && e.code === "access_denied") return `Claim ${id}: Access denied. It isn't available on your account.`;
+          throw e;
+        }
+      }));
+      return parts.join("\n\n");
+    }
     if (d.claimId) return formatDetail(await deps.claims.getClaim(token, d.claimId));
     return formatList(await deps.claims.listClaims(token, { status: d.claimStatus }), d.claimStatus);
   } catch (e) {

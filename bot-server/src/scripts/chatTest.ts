@@ -82,12 +82,22 @@ const check = (n: string, ok: boolean, got?: unknown) => { if (!ok) { failed++; 
   check("logInteraction ok", (await logInteraction(rec, async () => {})) === true);
   check("logInteraction swallows DB errors", (await logInteraction(rec, async () => { throw new Error("db down"); })) === false);
   check("logInteraction times out instead of hanging", (await logInteraction(rec, () => new Promise(() => {}), 50)) === false);
-  deps.route = (m: string) => routeIntent(m, async () => ({ intent: "UNSUPPORTED", confidence: 0.95 }));
+  deps.route = (m: string) => routeIntent(m, async () => ({ label: "OFF_TOPIC" as const, confidence: 0.95 }));
   o = await run("What is the capital of France?");
   check("off-topic gets the off-topic reply, not a clarification", o.response.answer.includes("but not with that topic"), o.response.answer);
   claimsImpl.getClaim = async () => { throw new ClaimsApiError(503, "service_unavailable"); };
   o = await run("What is the status of CLM-001?");
   check("claims outage gets the specific message", o.response.answer.includes("couldn't reach the claims service"), o.response.answer);
+
+  // ---- several claim IDs / ranges ----
+  deps.route = (m: string) => routeIntent(m);
+  claimsImpl.getClaim = async (_t: string, id: string) => { if (id === "CLM-006") throw new ClaimsApiError(403, "access_denied"); return { ...detail, claimId: id }; };
+  o = await run("Compare CLM-001 and CLM-006");
+  check("multi-ID: own claim shown, someone else's denied per ID", o.response.answer.includes("Claim CLM-001 (Auto)") && o.response.answer.includes("Claim CLM-006: Access denied") && !o.response.answer.includes("CLM-006 (Auto)"), o.response.answer);
+  o = await run('i am asking about claims from "CLM-006" to "CLM-0010"');
+  check("range request refused with a clear message", o.response.answer.includes("can't look up ranges") && o.trace.status === "fallback", o.response.answer);
+  o = await run("status of CLM-001, CLM-002, CLM-003 and CLM-004");
+  check("more than 3 IDs -> asks to narrow down", o.response.answer.includes("up to 3 claims"), o.response.answer);
 
   const server = app.listen(0); const port = (server.address() as any).port;
   const post = (body: unknown, auth?: string, raw?: string) => fetch(`http://127.0.0.1:${port}/chat`, {

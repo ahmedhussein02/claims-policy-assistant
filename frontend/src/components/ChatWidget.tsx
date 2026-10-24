@@ -15,7 +15,7 @@ function Rich({ text }: { text: string }) {
   return (
     <>
       {text.split("\n").map((line, i) => (
-        <span key={i} className="block">
+        <span key={i} className={line === "" ? "block h-2" : "block"}>
           {line.split(/(\*\*[^*]+\*\*)/g).map((part, j) =>
             part.startsWith("**") && part.endsWith("**") ? <strong key={j}>{part.slice(2, -2)}</strong> : part
           )}
