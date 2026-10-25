@@ -32,43 +32,70 @@ export default function ClaimsTable() {
     return () => ctrl.abort();
   }, [api, key, page, pageSize, status]);
 
-  const select = "rounded border bg-white px-2 py-1 text-sm";
+  const select = "rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-xs focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all cursor-pointer";
   return (
-    <section>
-      <div className="mb-4 flex flex-wrap items-center gap-4 text-sm">
-        <label>Status{" "}
+    <section className="bg-white rounded-2xl border border-slate-200/80 shadow-md overflow-hidden p-6 space-y-6">
+      {/* Filters Bar */}
+      <div className="flex flex-wrap items-center gap-6 text-sm pb-4 border-b border-slate-100">
+        <label className="flex items-center gap-2 font-medium text-slate-700">
+          Status:
           <select className={select} value={status} onChange={(e) => { setStatus(e.target.value as ClaimStatus | ""); setPage(1); }}>
             <option value="">All</option>
             {STATUSES.map((s) => <option key={s}>{s}</option>)}
           </select>
         </label>
-        <label>Per page{" "}
+        <label className="flex items-center gap-2 font-medium text-slate-700">
+          Per page:
           <select className={select} value={pageSize} onChange={(e) => { setPageSize(Number(e.target.value)); setPage(1); }}>
             {PAGE_SIZES.map((n) => <option key={n}>{n}</option>)}
           </select>
         </label>
       </div>
 
-      {error && <p role="alert" className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</p>}
+      {error && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-medium text-red-700 shadow-xs">{error}</p>}
 
       {!error && (
         <div className={loading ? "opacity-50 transition-opacity" : ""} aria-busy={loading}>
-          <table className="w-full border-collapse text-left text-sm">
-            <thead className="border-b text-gray-500">
-              <tr><th className="py-2">Claim</th><th>Type</th><th>Status</th><th>Submitted</th></tr>
-            </thead>
-            <tbody>
-              {data?.items.map((c) => (
-                <tr key={c.claimId} className="border-b hover:bg-gray-50">
-                  <td className="py-2"><Link className="text-blue-700 hover:underline" href={`/claims/${c.claimId}`}>{c.claimId}</Link></td>
-                  <td>{c.claimType}</td><td><StatusBadge status={c.status} /></td><td>{c.submittedDate}</td>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm text-slate-600">
+              <thead className="bg-slate-50 text-xs font-semibold text-slate-500 uppercase tracking-wider border-b border-slate-200/80">
+                <tr>
+                  <th className="px-6 py-3.5">Claim</th>
+                  <th className="px-6 py-3.5">Type</th>
+                  <th className="px-6 py-3.5">Status</th>
+                  <th className="px-6 py-3.5">Submitted</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-          {loading && !data && <p className="py-6 text-gray-500">Loading claims…</p>}
-          {data && data.items.length === 0 && <p className="py-6 text-gray-500">No claims match this filter.</p>}
-          {data && <Pagination page={data.page} totalPages={data.totalPages} totalItems={data.totalItems} onChange={setPage} disabled={loading} />}
+              </thead>
+              <tbody className="divide-y divide-slate-200/80">
+                {data?.items.map((c) => (
+                  <tr key={c.claimId} className="hover:bg-slate-50/80 transition-colors duration-150">
+                    <td className="px-6 py-4">
+                      <Link className="font-bold text-blue-600 hover:text-blue-800 transition-colors" href={`/claims/${c.claimId}`}>
+                        {c.claimId}
+                      </Link>
+                    </td>
+                    <td className="px-6 py-4 font-medium text-slate-900">{c.claimType}</td>
+                    <td className="px-6 py-4"><StatusBadge status={c.status} /></td>
+                    <td className="px-6 py-4 text-slate-500">{c.submittedDate}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {loading && !data && (
+            <div className="flex items-center justify-center py-12">
+              <div className="flex items-center gap-2 text-sm font-medium text-slate-500 bg-slate-50 px-4 py-2.5 rounded-xl border border-slate-200">
+                <span className="w-2 h-2 bg-blue-600 rounded-full animate-pulse" />
+                Loading claims…
+              </div>
+            </div>
+          )}
+          {data && data.items.length === 0 && <p className="py-8 text-center text-slate-500 text-sm">No claims match this filter.</p>}
+          {data && (
+            <div className="pt-4 border-t border-slate-100 mt-4">
+              <Pagination page={data.page} totalPages={data.totalPages} totalItems={data.totalItems} onChange={setPage} disabled={loading} />
+            </div>
+          )}
         </div>
       )}
     </section>

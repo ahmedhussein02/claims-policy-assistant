@@ -17,6 +17,14 @@ export default function Providers({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
-  if (!pca) return <p className="p-8 text-gray-500">Loading…</p>;
+  if (!pca) return (
+    <div className="flex items-center justify-center min-h-screen bg-slate-100">
+      <div className="flex items-center gap-2.5 text-sm font-medium text-slate-500 bg-white px-5 py-3 rounded-2xl border border-slate-200 shadow-md">
+        <span className="w-2 h-2 bg-blue-600 rounded-full animate-pulse" />
+        Loading authentication…
+      </div>
+    </div>
+  );
+
   return <MsalProvider instance={pca}>{children}</MsalProvider>;
 }

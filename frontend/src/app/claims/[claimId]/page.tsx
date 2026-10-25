@@ -22,23 +22,59 @@ function Detail({ claimId }: { claimId: string }) {
     return () => ctrl.abort();
   }, [api, claimId]);
 
-  if (error) return <p role="alert" className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</p>;
-  if (!claim) return <p className="text-gray-500">Loading claim…</p>;
-
-  const row = "grid grid-cols-3 gap-2 border-b py-2 text-sm";
-  return (
-    <div className="rounded border bg-white p-5">
-      <h1 className="mb-3 flex items-center gap-3 text-xl font-semibold">{claim.claimId} <StatusBadge status={claim.status} /></h1>
-      <div className={row}><span className="text-gray-500">Type</span><span className="col-span-2">{claim.claimType}</span></div>
-      <div className={row}><span className="text-gray-500">Submitted</span><span className="col-span-2">{claim.submittedDate}</span></div>
-      <div className={row}><span className="text-gray-500">Last updated</span><span className="col-span-2">{claim.updatedAt.slice(0, 10)}</span></div>
-      <div className={row}>
-        <span className="text-gray-500">Required documents</span>
-        <span className="col-span-2">{claim.requiredDocuments.length ? (
-          <ul className="list-inside list-disc">{claim.requiredDocuments.map((d) => <li key={d}>{d}</li>)}</ul>
-        ) : "None"}</span>
+  if (error) return <p role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-medium text-red-700 shadow-xs">{error}</p>;
+  if (!claim) return (
+    <div className="flex items-center justify-center py-12">
+      <div className="flex items-center gap-2.5 text-sm font-medium text-slate-500 bg-white px-5 py-3 rounded-xl border border-slate-200 shadow-xs">
+        <span className="w-2 h-2 bg-blue-600 rounded-full animate-pulse" />
+        Loading claim…
       </div>
-      <div className={row}><span className="text-gray-500">Next step</span><span className="col-span-2">{claim.nextStep}</span></div>
+    </div>
+  );
+
+  const row = "grid grid-cols-3 gap-4 border-b border-slate-100 py-3.5 text-sm items-center";
+  return (
+    <div className="bg-white rounded-2xl border border-slate-200/80 shadow-md p-6 sm:p-8 space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200/80 pb-6">
+        <div>
+          <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">Claim Details</span>
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 mt-1 tracking-tight">{claim.claimId}</h1>
+        </div>
+        <div>
+          <StatusBadge status={claim.status} />
+        </div>
+      </div>
+
+      <div className="divide-y divide-slate-100">
+        <div className={row}>
+          <span className="text-slate-500 font-medium">Type</span>
+          <span className="col-span-2 font-semibold text-slate-900">{claim.claimType}</span>
+        </div>
+        <div className={row}>
+          <span className="text-slate-500 font-medium">Submitted</span>
+          <span className="col-span-2 text-slate-700">{claim.submittedDate}</span>
+        </div>
+        <div className={row}>
+          <span className="text-slate-500 font-medium">Last updated</span>
+          <span className="col-span-2 text-slate-700">{claim.updatedAt.slice(0, 10)}</span>
+        </div>
+        <div className={row}>
+          <span className="text-slate-500 font-medium">Required documents</span>
+          <span className="col-span-2 text-slate-700">
+            {claim.requiredDocuments.length ? (
+              <ul className="list-inside list-disc space-y-1 mt-1">
+                {claim.requiredDocuments.map((d) => <li key={d} className="text-sm text-slate-700">{d}</li>)}
+              </ul>
+            ) : (
+              <span className="text-slate-400 italic">None</span>
+            )}
+          </span>
+        </div>
+        <div className={row}>
+          <span className="text-slate-500 font-medium">Next step</span>
+          <span className="col-span-2 font-medium text-blue-600">{claim.nextStep}</span>
+        </div>
+      </div>
     </div>
   );
 }
@@ -46,10 +82,19 @@ function Detail({ claimId }: { claimId: string }) {
 export default function ClaimPage() {
   const { claimId } = useParams<{ claimId: string }>();
   return (
-    <>
-      <Link href="/claims" className="mb-4 inline-block text-sm text-blue-700 hover:underline">← Back to claims</Link>
+    <div className="max-w-4xl mx-auto py-8 px-4 sm:px-6 space-y-6">
+      <Link 
+        href="/claims" 
+        className="inline-flex items-center gap-2 text-sm font-semibold text-slate-600 hover:text-slate-900 transition-colors cursor-pointer group"
+      >
+        <span className="transition-transform group-hover:-translate-x-0.5">←</span> Back to claims
+      </Link>
       <AuthenticatedTemplate><Detail claimId={claimId} /></AuthenticatedTemplate>
-      <UnauthenticatedTemplate><p className="text-gray-600">Please sign in to view this claim.</p></UnauthenticatedTemplate>
-    </>
+      <UnauthenticatedTemplate>
+        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-md p-8 text-center">
+          <p className="text-slate-600 text-sm">Please sign in to view this claim.</p>
+        </div>
+      </UnauthenticatedTemplate>
+    </div>
   );
 }
